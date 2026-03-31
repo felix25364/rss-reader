@@ -13,11 +13,15 @@ void main() {
   );
 }
 
-class NucleusRssApp extends StatelessWidget {
+import 'providers/providers.dart';
+
+class NucleusRssApp extends ConsumerWidget {
   const NucleusRssApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+
     return DynamicColorBuilder(
       builder: (lightDynamic, darkDynamic) {
         // Fallback colors if dynamic colors are not supported (e.g., older Androids)
@@ -34,7 +38,7 @@ class NucleusRssApp extends StatelessWidget {
           title: 'Nucleus RSS',
           theme: lightTheme,
           darkTheme: darkTheme,
-          themeMode: ThemeMode.system, // Respects Pixel 8 system setting
+          themeMode: themeMode,
           home: const HomeScreen(),
         );
       },

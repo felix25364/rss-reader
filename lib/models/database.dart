@@ -20,6 +20,7 @@ class Articles extends Table {
   DateTimeColumn get pubDate => dateTime()();
   TextColumn get category => text().nullable().references(Categories, #name)();
   TextColumn get content => text()();
+  TextColumn get imageUrl => text().nullable()();
   BoolColumn get isRead => boolean().withDefault(const Constant(false))();
   RealColumn get relevanceScore => real().withDefault(const Constant(0.0))();
 }
@@ -30,5 +31,16 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onUpgrade: (m, from, to) async {
+        if (from < 2) {
+          await m.addColumn(articles, articles.imageUrl);
+        }
+      },
+    );
+  }
 }

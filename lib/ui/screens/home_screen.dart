@@ -9,6 +9,8 @@ import '../../services/opml_service.dart';
 import '../../services/rss_service.dart';
 import '../../services/classifier_service.dart';
 import 'package:google_mlkit_entity_extraction/google_mlkit_entity_extraction.dart';
+import 'article_screen.dart';
+import 'settings_screen.dart';
 
 /// Main scaffold with NavigationBar for the Pixel 8.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -48,9 +50,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: const Text('Nucleus RSS'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_upload),
-            onPressed: _importOpml,
-            tooltip: 'OPML Importieren',
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+            tooltip: 'Einstellungen',
           ),
         ],
       ),
@@ -104,6 +108,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           itemBuilder: (context, index) {
             final article = articles[index];
             return ListTile(
+              leading: article.imageUrl != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        article.imageUrl!,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.article),
+                      ),
+                    )
+                  : const Icon(Icons.article),
               title: Text(article.title),
               subtitle: Text(
                 '${article.category ?? 'Unkategorisiert'} • ${article.pubDate.day}.${article.pubDate.month}.${article.pubDate.year}',
@@ -120,6 +136,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     );
                   }
                 }
+
+                if (mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ArticleScreen(article: article),
+                    ),
+                  );
+                }
               },
             );
           },
@@ -130,70 +155,4 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<void> _importOpml() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['opml', 'xml'],
-    );
-
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      final opmlService = ref.read(opmlServiceProvider);
-      final rssService = ref.read(rssServiceProvider);
-      final classifier = ref.read(classifierServiceProvider);
-      final db = ref.read(databaseProvider);
-
-      try {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Importiere Feeds...')),
-        );
-
-        final urls = await opmlService.parseOpml(file);
-        int totalArticles = 0;
-
-        for (final url in urls) {
-          final articles = await rssService.fetchFeed(url);
-
-          for (final a in articles) {
-            // Classify content using background isolate
-            final categoryName = await classifier.classifyText(a.title, a.content);
-
-            // Ensure category exists
-            final catQuery = db.select(db.categories)..where((c) => c.name.equals(categoryName));
-            final cat = await catQuery.getSingleOrNull();
-
-            if (cat == null) {
-              await db.into(db.categories).insert(
-                CategoriesCompanion.insert(name: categoryName),
-              );
-            }
-
-            // Insert article
-            await db.into(db.articles).insert(
-              ArticlesCompanion.insert(
-                title: a.title,
-                link: a.link,
-                content: a.content,
-                pubDate: a.pubDate,
-                category: drift.Value(categoryName),
-              ),
-            );
-            totalArticles++;
-          }
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erfolgreich $totalArticles Artikel importiert.')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler beim Import: $e')),
-          );
-        }
-      }
-    }
-  }
 }

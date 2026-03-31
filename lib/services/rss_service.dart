@@ -8,12 +8,14 @@ class ParsedArticle {
   final String title;
   final String link;
   final String content;
+  final String? imageUrl;
   final DateTime pubDate;
 
   ParsedArticle({
     required this.title,
     required this.link,
     required this.content,
+    this.imageUrl,
     required this.pubDate,
   });
 }
@@ -36,10 +38,40 @@ class RssService {
             pubDate = DateTime.now(); // Fallback if parsing fails
           }
 
+          // Try to extract an image from enclosure or media tags
+          String? imageUrl;
+          if (item.enclosure?.url != null && (item.enclosure?.type?.startsWith('image/') ?? false)) {
+            imageUrl = item.enclosure!.url;
+          } else if (item.media?.contents.isNotEmpty ?? false) {
+            final mediaContent = item.media!.contents.firstWhere(
+                (m) => m.type?.startsWith('image/') ?? false,
+                orElse: () => item.media!.contents.first);
+            if (mediaContent.url != null) {
+              imageUrl = mediaContent.url;
+            }
+          } else if (item.content?.images.isNotEmpty ?? false) {
+            imageUrl = item.content!.images.first;
+          }
+
+          // Fallback to searching the HTML description for an img tag
+          if (imageUrl == null && item.description != null) {
+            final RegExp imgRegex = RegExp(r'<img[^>]+src="([^">]+)"');
+            final match = imgRegex.firstMatch(item.description!);
+            if (match != null && match.groupCount >= 1) {
+              imageUrl = match.group(1);
+            }
+          }
+
+          // In standard RSS sometimes description is content, sometimes it's split.
+          final contentStr = (item.content?.value != null && item.content!.value!.isNotEmpty)
+              ? item.content!.value!
+              : item.description ?? '';
+
           return ParsedArticle(
             title: item.title ?? 'No title',
             link: item.link ?? '',
-            content: item.description ?? '', // Using description as content
+            content: contentStr,
+            imageUrl: imageUrl,
             pubDate: pubDate,
           );
         }).toList();

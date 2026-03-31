@@ -7,6 +7,11 @@ import '../services/classifier_service.dart';
 import '../services/opml_service.dart';
 import '../services/rss_service.dart';
 
+import 'package:flutter/material.dart';
+
+/// App theme provider.
+final themeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+
 /// Database provider.
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase(openConnection());
@@ -31,6 +36,15 @@ final timelineProvider = StreamProvider<List<Article>>((ref) {
 final categoriesProvider = StreamProvider<List<Category>>((ref) {
   final db = ref.watch(databaseProvider);
   return db.select(db.categories).watch();
+});
+
+/// Fetches articles for a specific category
+final categoryArticlesProvider = StreamProvider.family<List<Article>, String>((ref, categoryName) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.articles)
+        ..where((t) => t.category.equals(categoryName))
+        ..orderBy([(t) => drift.OrderingTerm.desc(t.pubDate)]))
+      .watch();
 });
 
 /// Stream of articles sorted for the "Für Dich" feed using the algorithm:
